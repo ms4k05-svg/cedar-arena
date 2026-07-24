@@ -518,7 +518,7 @@ begin
       where id = p_tournament_id;
       return;
     end if;
-    select jsonb_agg(round -> i -> 'winner') into winners from generate_series(0, jsonb_array_length(round) - 1) as i;
+    select jsonb_agg(round -> gs.idx -> 'winner') into winners from generate_series(0, jsonb_array_length(round) - 1) as gs(idx);
     next_round := '[]'::jsonb;
     i := 0;
     while i < jsonb_array_length(winners) loop
@@ -554,7 +554,7 @@ begin
   end if;
   select coalesce(jsonb_agg(elem), '[]'::jsonb) into rounds
   from (
-    select elem from jsonb_array_elements(rounds) with ordinality as t(elem, ord)
+    select elem from jsonb_array_elements(rounds) with ordinality as x(elem, ord)
     where ord - 1 <= p_round_idx
   ) s;
   round := jsonb_set(rounds -> p_round_idx, array[p_match_idx::text, 'winner'], 'null'::jsonb);
