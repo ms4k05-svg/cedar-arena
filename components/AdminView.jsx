@@ -132,10 +132,12 @@ function CreateTournament({ onCreate, games }) {
     if (!gameId && games.length > 0) setGameId(games[0].id);
   }, [games, gameId]);
 
+  const isClashRoyale = games.find((g) => g.id === gameId)?.slug === "clash-royale";
+
   const submit = async () => {
     setErr(null);
     if (!gameId) { setErr(tr("err_t_game")); return; }
-    const e = await onCreate({ name, startsAt, entryFee, prizePool, maxPlayers, mode, series, bo5From, gameId });
+    const e = await onCreate({ name, startsAt, entryFee, prizePool, maxPlayers, mode: isClashRoyale ? mode : null, series, bo5From, gameId });
     if (e) setErr(e);
   };
 
@@ -155,18 +157,20 @@ function CreateTournament({ onCreate, games }) {
         <Field label={tr("f_fee")} value={entryFee} onChange={setEntryFee} placeholder="$5" />
         <Field label={tr("f_prize")} value={prizePool} onChange={setPrizePool} placeholder="$50" />
       </div>
-      <Choice
-        label={tr("mode_label")}
-        value={mode}
-        onChange={setMode}
-        options={[
-          { value: "Mega Draft", label: "Mega Draft" },
-          { value: "Triple Draft", label: "Triple Draft" },
-          { value: "Duel", label: "Duel" },
-        ]}
-        hint={mode === "Duel" ? tr("duel_hint") : null}
-      />
-      {mode !== "Duel" && (
+      {isClashRoyale && (
+        <Choice
+          label={tr("mode_label")}
+          value={mode}
+          onChange={setMode}
+          options={[
+            { value: "Mega Draft", label: "Mega Draft" },
+            { value: "Triple Draft", label: "Triple Draft" },
+            { value: "Duel", label: "Duel" },
+          ]}
+          hint={mode === "Duel" ? tr("duel_hint") : null}
+        />
+      )}
+      {(!isClashRoyale || mode !== "Duel") && (
         <Choice
           label={tr("matches_are")}
           value={series}

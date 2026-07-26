@@ -126,7 +126,7 @@ create table if not exists public.tournaments (
   entry_fee text not null default '',
   prize text not null default '',
   max_players int not null check (max_players >= 4 and max_players % 2 = 0),
-  mode text not null default 'Mega Draft' check (mode in ('Mega Draft','Triple Draft','Duel')),
+  mode text check (mode is null or mode in ('Mega Draft','Triple Draft','Duel')),
   series text not null default 'Bo3' check (series in ('Bo3','Bo5')),
   bo5_from text not null default 'none' check (bo5_from in ('none','final','semis')),
   status text not null default 'open' check (status in ('open','live','completed')),
@@ -140,6 +140,13 @@ create table if not exists public.tournaments (
 alter table public.tournaments add column if not exists game_id uuid references public.games(id);
 update public.tournaments set game_id = (select id from public.games where slug = 'clash-royale') where game_id is null;
 alter table public.tournaments alter column game_id set not null;
+
+-- "mode" (Mega Draft / Triple Draft / Duel) is Clash Royale-only; other games leave it null.
+alter table public.tournaments alter column mode drop not null;
+alter table public.tournaments alter column mode drop default;
+alter table public.tournaments drop constraint if exists tournaments_mode_check;
+alter table public.tournaments add constraint tournaments_mode_check
+  check (mode is null or mode in ('Mega Draft','Triple Draft','Duel'));
 
 drop index if exists one_active_tournament_idx;
 create unique index one_active_tournament_idx on public.tournaments ((1)) where status <> 'completed';
@@ -474,20 +481,26 @@ declare
   exists_active boolean;
   series text := coalesce(p_series, 'Bo3');
   bo5 text := coalesce(p_bo5_from, 'none');
-  game_ok boolean;
+  gslug text;
+  final_mode text;
 begin
   if not public.is_admin() then raise exception 'not admin'; end if;
   select exists(select 1 from public.tournaments where status <> 'completed') into exists_active;
   if exists_active then return 'exists'; end if;
   if trim(coalesce(p_name, '')) = '' then return 'name'; end if;
   if p_max_players is null or p_max_players < 4 or p_max_players % 2 <> 0 then return 'count'; end if;
-  select exists(select 1 from public.games where id = p_game_id) into game_ok;
-  if not game_ok then return 'game'; end if;
-  if p_mode = 'Duel' then series := 'Bo3'; end if;
+  select slug into gslug from public.games where id = p_game_id;
+  if gslug is null then return 'game'; end if;
+  if gslug = 'clash-royale' then
+    final_mode := coalesce(p_mode, 'Mega Draft');
+    if final_mode = 'Duel' then series := 'Bo3'; end if;
+  else
+    final_mode := null;
+  end if;
   if series = 'Bo5' then bo5 := 'none'; end if;
   insert into public.tournaments (name, starts_at, entry_fee, prize, max_players, mode, series, bo5_from, game_id)
   values (trim(p_name), coalesce(p_starts_at, ''), coalesce(p_entry_fee, ''), coalesce(p_prize, ''),
-          p_max_players, coalesce(p_mode, 'Mega Draft'), series, bo5, p_game_id);
+          p_max_players, final_mode, series, bo5, p_game_id);
   return null;
 exception when unique_violation then
   return 'exists';
