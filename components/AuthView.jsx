@@ -14,7 +14,6 @@ export default function AuthView({ app }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [phone, setPhone] = useState("");
-  const [tag, setTag] = useState("");
   const [username, setUsername] = useState("");
   const [err, setErr] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -38,7 +37,7 @@ export default function AuthView({ app }) {
     setErr(null);
     const e =
       mode === "signup"
-        ? await app.signup({ email, password, phone, tag, username })
+        ? await app.signup({ email, password, phone, username })
         : await app.login({ email, password });
     if (e) setErr(e);
     setBusy(false);
@@ -91,13 +90,6 @@ export default function AuthView({ app }) {
               onChange={setPhone}
               placeholder="03 123 456"
               hint={tr("f_phone_hint")}
-            />
-            <Field
-              label={tr("f_tag")}
-              value={tag}
-              onChange={setTag}
-              placeholder="#2PP0V9L"
-              hint={tr("f_tag_hint")}
             />
           </>
         )}

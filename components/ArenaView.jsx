@@ -1,14 +1,16 @@
 "use client";
 
+import { useState } from "react";
 import { useT } from "@/lib/i18n";
 import { C, DISP } from "@/lib/theme";
-import { Btn, Tag, WhatsAppIcon, WhishBadge, CedarCrown, Stat, SlotMeter } from "@/components/ui";
+import { Btn, Field, Tag, WhatsAppIcon, WhishBadge, CedarCrown, Stat, SlotMeter } from "@/components/ui";
 import { waLink } from "@/lib/helpers";
 import BracketView from "@/components/BracketView";
 
 export default function ArenaView({ app }) {
   const tr = useT();
-  const { tournament: t, me, myReg, settings, isAdmin, register, reportWinner, undoResult, finishTournament, reportNoShow } = app;
+  const { tournament: t, me, myReg, settings, isAdmin, register, reportWinner, undoResult, finishTournament, reportNoShow, games, setGameId } = app;
+  const game = games.find((g) => g.id === t?.game_id);
 
   if (!t) {
     return (
@@ -61,6 +63,7 @@ export default function ArenaView({ app }) {
         {t.starts_at && <div style={{ color: C.mute, fontSize: 14, marginTop: 8 }}>{tr("starts", t.starts_at)}</div>}
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, margin: "22px 0" }}>
+          {game && <Stat label={tr("stat_game")} value={game.name} accent={C.gold} small />}
           <Stat label={tr("stat_entry")} value={t.entry_fee || "—"} accent={C.bone} />
           <Stat label={tr("stat_prize")} value={t.prize || "—"} accent={C.gold} />
           {t.mode && <Stat label={tr("stat_mode")} value={t.mode} accent={C.bone} small />}
@@ -72,9 +75,7 @@ export default function ArenaView({ app }) {
         {t.status === "open" && (
           <div style={{ marginTop: 22 }}>
             {!myReg ? (
-              <Btn onClick={register} style={{ width: "100%" }}>
-                {me ? tr("reg_btn") : tr("reg_signin")}
-              </Btn>
+              <RegisterButton me={me} register={register} game={game} setGameId={setGameId} />
             ) : (
               <RegStatusCard reg={myReg} t={t} settings={settings} />
             )}
@@ -122,6 +123,52 @@ export default function ArenaView({ app }) {
 
       {t.status === "open" && <HowItWorks settings={settings} entryFee={t.entry_fee} />}
     </div>
+  );
+}
+
+function RegisterButton({ me, register, game, setGameId }) {
+  const tr = useT();
+  const [needGameId, setNeedGameId] = useState(false);
+  const [value, setValue] = useState("");
+  const [err, setErr] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const click = async () => {
+    setBusy(true);
+    setErr(null);
+    const result = await register();
+    if (result === "need_game_id") setNeedGameId(true);
+    setBusy(false);
+  };
+
+  const submitGameId = async () => {
+    setBusy(true);
+    setErr(null);
+    const e = await setGameId(game.id, value, game.slug);
+    if (e) { setErr(e); setBusy(false); return; }
+    setNeedGameId(false);
+    await register();
+    setBusy(false);
+  };
+
+  if (needGameId && game) {
+    return (
+      <div style={{ background: "rgba(233,180,76,0.08)", border: `1px solid ${C.line}`, borderRadius: 10, padding: 16 }}>
+        <div style={{ fontWeight: 700, color: C.gold, marginBottom: 8 }}>{tr("need_game_id_title")}</div>
+        <div style={{ fontSize: 13, color: C.mute, marginBottom: 10 }}>{tr("need_game_id_body", game.player_id_label)}</div>
+        <Field label={game.player_id_label} value={value} onChange={setValue} hint={game.player_id_hint} />
+        {err && <div style={{ color: C.red, fontSize: 13, marginBottom: 12 }}>{err}</div>}
+        <Btn onClick={submitGameId} disabled={busy || !value.trim()} style={{ width: "100%" }}>
+          {tr("game_id_save_btn")}
+        </Btn>
+      </div>
+    );
+  }
+
+  return (
+    <Btn onClick={click} disabled={busy} style={{ width: "100%" }}>
+      {me ? tr("reg_btn") : tr("reg_signin")}
+    </Btn>
   );
 }
 

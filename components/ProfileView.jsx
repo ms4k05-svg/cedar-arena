@@ -66,11 +66,21 @@ export default function ProfileView({ app }) {
             <span style={{ color: C.mute }}>{tr("f_phone")}</span>
             <span style={{ direction: "ltr" }}>{me.phone}</span>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <span style={{ color: C.mute }}>{tr("f_tag")}</span>
-            <Tag>{me.player_tag}</Tag>
-          </div>
-          <div style={{ fontSize: 11, color: C.mute }}>🔒 {tr("prof_tag_note")}</div>
+          {me.player_tag && (
+            <>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <span style={{ color: C.mute }}>{tr("f_tag")}</span>
+                <Tag>{me.player_tag}</Tag>
+              </div>
+              <div style={{ fontSize: 11, color: C.mute }}>🔒 {tr("prof_tag_note")}</div>
+            </>
+          )}
+          {app.myGameIds.map((g) => (
+            <div key={g.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <span style={{ color: C.mute }}>{g.games?.name}</span>
+              <Tag>{g.value}</Tag>
+            </div>
+          ))}
         </div>
       </Panel>
 

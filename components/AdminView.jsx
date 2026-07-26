@@ -8,7 +8,7 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 
 export default function AdminView({ app }) {
   const tr = useT();
-  const { tournament: t, settings, saveSettings, createTournament, cancelTournament, setRegStatus, removeReg, startBracket, users, adminResetPassword, me, refresh } = app;
+  const { tournament: t, settings, saveSettings, createTournament, cancelTournament, setRegStatus, removeReg, startBracket, users, adminResetPassword, me, refresh, games } = app;
 
   return (
     <div style={{ display: "grid", gap: 18 }}>
@@ -20,7 +20,7 @@ export default function AdminView({ app }) {
       <AdminSettings settings={settings} onSave={saveSettings} />
 
       {!t ? (
-        <CreateTournament onCreate={createTournament} />
+        <CreateTournament onCreate={createTournament} games={games} />
       ) : (
         <ManageTournament
           t={t}
@@ -48,7 +48,7 @@ function AccountsPanel({ users, onReset, adminId }) {
     return (
       (u.username || "").toLowerCase().includes(s) ||
       u.email.toLowerCase().includes(s) ||
-      u.player_tag.toLowerCase().includes(s) ||
+      (u.player_tag || "").toLowerCase().includes(s) ||
       (u.player_id || "").includes(s)
     );
   });
@@ -72,7 +72,7 @@ function AccountsPanel({ users, onReset, adminId }) {
                   <span style={{ fontWeight: 700, fontSize: 14 }}>
                     {u.username || "—"} {u.role === "admin" && "👑"}
                   </span>
-                  <Tag>{u.player_tag}</Tag>
+                  {u.player_tag && <Tag>{u.player_tag}</Tag>}
                   <Tag>{u.player_id}</Tag>
                 </div>
                 <div style={{ fontSize: 12, color: C.mute, direction: "ltr", textAlign: "start" }}>
@@ -115,7 +115,7 @@ function AdminSettings({ settings, onSave }) {
   );
 }
 
-function CreateTournament({ onCreate }) {
+function CreateTournament({ onCreate, games }) {
   const tr = useT();
   const [name, setName] = useState("");
   const [startsAt, setStartsAt] = useState("");
@@ -125,16 +125,30 @@ function CreateTournament({ onCreate }) {
   const [mode, setMode] = useState("Mega Draft");
   const [series, setSeries] = useState("Bo3");
   const [bo5From, setBo5From] = useState("none");
+  const [gameId, setGameId] = useState("");
   const [err, setErr] = useState(null);
+
+  useEffect(() => {
+    if (!gameId && games.length > 0) setGameId(games[0].id);
+  }, [games, gameId]);
 
   const submit = async () => {
     setErr(null);
-    const e = await onCreate({ name, startsAt, entryFee, prizePool, maxPlayers, mode, series, bo5From });
+    if (!gameId) { setErr(tr("err_t_game")); return; }
+    const e = await onCreate({ name, startsAt, entryFee, prizePool, maxPlayers, mode, series, bo5From, gameId });
     if (e) setErr(e);
   };
 
   return (
     <Panel title={tr("create_t")}>
+      {games.length > 0 && (
+        <Choice
+          label={tr("game_label")}
+          value={gameId}
+          onChange={setGameId}
+          options={games.map((g) => ({ value: g.id, label: g.name }))}
+        />
+      )}
       <Field label={tr("f_name")} value={name} onChange={setName} placeholder="Cedar Cup #1" />
       <Field label={tr("f_starts")} value={startsAt} onChange={setStartsAt} placeholder={tr("f_starts_ph")} />
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
