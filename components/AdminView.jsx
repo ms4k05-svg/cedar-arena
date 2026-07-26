@@ -48,7 +48,8 @@ function AccountsPanel({ users, onReset, adminId }) {
     return (
       (u.username || "").toLowerCase().includes(s) ||
       u.email.toLowerCase().includes(s) ||
-      u.player_tag.toLowerCase().includes(s)
+      u.player_tag.toLowerCase().includes(s) ||
+      (u.player_id || "").includes(s)
     );
   });
 
@@ -72,6 +73,7 @@ function AccountsPanel({ users, onReset, adminId }) {
                     {u.username || "—"} {u.role === "admin" && "👑"}
                   </span>
                   <Tag>{u.player_tag}</Tag>
+                  <Tag>{u.player_id}</Tag>
                 </div>
                 <div style={{ fontSize: 12, color: C.mute, direction: "ltr", textAlign: "start" }}>
                   {u.email} · {u.phone}

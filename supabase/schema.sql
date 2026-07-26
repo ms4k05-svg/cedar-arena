@@ -40,6 +40,7 @@ create table if not exists public.profiles (
   username text not null,
   phone text not null,
   player_tag text not null,
+  player_id text,
   role text not null default 'player' check (role in ('admin','player')),
   must_change_password boolean not null default false,
   language text not null default 'en' check (language in ('en','ar','fr')),
@@ -48,6 +49,30 @@ create table if not exists public.profiles (
 
 create unique index if not exists profiles_username_lower_key on public.profiles (lower(username));
 create unique index if not exists profiles_player_tag_key on public.profiles (player_tag);
+
+-- Universal, permanent 10-digit Player ID (separate from any game-specific tag).
+-- No RPC or policy ever updates this column once set, so it's effectively immutable.
+create or replace function public.generate_player_id()
+returns text language plpgsql as $$
+declare
+  candidate text;
+  clash boolean;
+begin
+  loop
+    candidate := lpad(floor(random() * 10000000000)::bigint::text, 10, '0');
+    select exists(select 1 from public.profiles where player_id = candidate) into clash;
+    exit when not clash;
+  end loop;
+  return candidate;
+end $$;
+
+update public.profiles set player_id = public.generate_player_id() where player_id is null;
+
+alter table public.profiles alter column player_id set not null;
+drop index if exists profiles_player_id_key;
+create unique index profiles_player_id_key on public.profiles (player_id);
+alter table public.profiles drop constraint if exists profiles_player_id_format;
+alter table public.profiles add constraint profiles_player_id_format check (player_id ~ '^[0-9]{10}$');
 
 alter table public.profiles enable row level security;
 
@@ -276,8 +301,8 @@ begin
     raise exception 'phone_invalid';
   end if;
   select not exists(select 1 from public.profiles) into is_first;
-  insert into public.profiles (id, email, username, phone, player_tag, role)
-  values (new.id, new.email, uname, uphone, utag, case when is_first then 'admin' else 'player' end);
+  insert into public.profiles (id, email, username, phone, player_tag, role, player_id)
+  values (new.id, new.email, uname, uphone, utag, case when is_first then 'admin' else 'player' end, public.generate_player_id());
   return new;
 end $$;
 

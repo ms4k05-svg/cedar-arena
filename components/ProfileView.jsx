@@ -53,6 +53,11 @@ export default function ProfileView({ app }) {
 
       <Panel title={tr("prof_account")}>
         <div style={{ display: "grid", gap: 10, fontSize: 13 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span style={{ color: C.mute }}>{tr("f_player_id")}</span>
+            <Tag>{me.player_id}</Tag>
+          </div>
+          <div style={{ fontSize: 11, color: C.mute }}>🔒 {tr("prof_player_id_note")}</div>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
             <span style={{ color: C.mute }}>{tr("f_email")}</span>
             <span style={{ direction: "ltr" }}>{me.email}</span>
