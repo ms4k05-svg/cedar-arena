@@ -8,7 +8,7 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 
 export default function AdminView({ app }) {
   const tr = useT();
-  const { tournament: t, settings, saveSettings, createTournament, cancelTournament, setRegStatus, removeReg, startBracket, users, adminResetPassword, me, refresh, games } = app;
+  const { tournament: t, settings, saveSettings, createTournament, cancelTournament, setRegStatus, removeReg, startBracket, users, adminResetPassword, me, refresh, games, adminSetTeamStatus, adminRemoveTeam } = app;
 
   return (
     <div style={{ display: "grid", gap: 18 }}>
@@ -26,6 +26,8 @@ export default function AdminView({ app }) {
           t={t}
           onSetStatus={setRegStatus}
           onRemove={removeReg}
+          onSetTeamStatus={adminSetTeamStatus}
+          onRemoveTeam={adminRemoveTeam}
           onStart={startBracket}
           onCancel={cancelTournament}
         />
@@ -126,6 +128,12 @@ function CreateTournament({ onCreate, games }) {
   const [series, setSeries] = useState("Bo3");
   const [bo5From, setBo5From] = useState("none");
   const [gameId, setGameId] = useState("");
+  const [format, setFormat] = useState("solo");
+  const [minTeamSize, setMinTeamSize] = useState("5");
+  const [maxTeamSize, setMaxTeamSize] = useState("");
+  const [checkInRequired, setCheckInRequired] = useState(false);
+  const [scoreReporting, setScoreReporting] = useState("admin");
+  const [requireScreenshot, setRequireScreenshot] = useState(false);
   const [err, setErr] = useState(null);
 
   useEffect(() => {
@@ -133,11 +141,19 @@ function CreateTournament({ onCreate, games }) {
   }, [games, gameId]);
 
   const isClashRoyale = games.find((g) => g.id === gameId)?.slug === "clash-royale";
+  const isTeamFormat = format === "team";
 
   const submit = async () => {
     setErr(null);
     if (!gameId) { setErr(tr("err_t_game")); return; }
-    const e = await onCreate({ name, startsAt, entryFee, prizePool, maxPlayers, mode: isClashRoyale ? mode : null, series, bo5From, gameId });
+    const e = await onCreate({
+      name, startsAt, entryFee, prizePool, maxPlayers,
+      mode: isClashRoyale ? mode : null, series, bo5From, gameId,
+      format,
+      minTeamSize: isTeamFormat ? minTeamSize : null,
+      maxTeamSize: isTeamFormat && maxTeamSize.trim() !== "" ? maxTeamSize : null,
+      checkInRequired, scoreReporting, requireScreenshot,
+    });
     if (e) setErr(e);
   };
 
@@ -150,6 +166,21 @@ function CreateTournament({ onCreate, games }) {
           onChange={setGameId}
           options={games.map((g) => ({ value: g.id, label: g.name }))}
         />
+      )}
+      <Choice
+        label={tr("format_label")}
+        value={format}
+        onChange={setFormat}
+        options={[
+          { value: "solo", label: tr("format_solo") },
+          { value: "team", label: tr("format_team") },
+        ]}
+      />
+      {isTeamFormat && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <Field label={tr("min_team_size")} value={minTeamSize} onChange={setMinTeamSize} placeholder="5" />
+          <Field label={tr("max_team_size")} value={maxTeamSize} onChange={setMaxTeamSize} placeholder={tr("max_team_size_ph")} />
+        </div>
       )}
       <Field label={tr("f_name")} value={name} onChange={setName} placeholder="Cedar Cup #1" />
       <Field label={tr("f_starts")} value={startsAt} onChange={setStartsAt} placeholder={tr("f_starts_ph")} />
@@ -195,30 +226,76 @@ function CreateTournament({ onCreate, games }) {
         />
       )}
       <Field label={tr("f_count")} value={maxPlayers} onChange={setMaxPlayers} placeholder="16" hint={tr("count_hint")} />
+      <Choice
+        label={tr("checkin_label")}
+        value={checkInRequired ? "on" : "off"}
+        onChange={(v) => setCheckInRequired(v === "on")}
+        options={[
+          { value: "off", label: tr("disabled") },
+          { value: "on", label: tr("enabled") },
+        ]}
+        hint={tr("checkin_hint")}
+      />
+      <Choice
+        label={tr("score_reporting_label")}
+        value={scoreReporting}
+        onChange={setScoreReporting}
+        options={[
+          { value: "admin", label: tr("score_reporting_admin") },
+          { value: "players", label: tr("score_reporting_players") },
+        ]}
+        hint={tr("score_reporting_hint")}
+      />
+      <Choice
+        label={tr("require_screenshot_label")}
+        value={requireScreenshot ? "on" : "off"}
+        onChange={(v) => setRequireScreenshot(v === "on")}
+        options={[
+          { value: "off", label: tr("not_required") },
+          { value: "on", label: tr("required") },
+        ]}
+      />
       {err && <div style={{ color: C.red, fontSize: 13, marginBottom: 12 }}>{err}</div>}
       <Btn onClick={submit}>{tr("create_btn")}</Btn>
     </Panel>
   );
 }
 
-function ManageTournament({ t, onSetStatus, onRemove, onStart, onCancel }) {
+function ManageTournament({ t, onSetStatus, onRemove, onSetTeamStatus, onRemoveTeam, onStart, onCancel }) {
   const tr = useT();
   const [regs, setRegs] = useState([]);
+  const [teamMembers, setTeamMembers] = useState({});
   const supabase = supabaseBrowser();
+  const isTeam = t.format === "team";
 
   useEffect(() => {
     let alive = true;
     const load = async () => {
       const { data } = await supabase.from("registrations").select("*").eq("tournament_id", t.id).order("created_at", { ascending: true });
-      if (alive) setRegs(data || []);
+      if (!alive) return;
+      setRegs(data || []);
+      if (isTeam && data?.length) {
+        const teamIds = data.map((r) => r.team_id).filter(Boolean);
+        const { data: members } = await supabase
+          .from("team_members")
+          .select("team_id, user_id, profiles(username)")
+          .in("team_id", teamIds);
+        const byTeam = {};
+        (members || []).forEach((m) => {
+          if (!byTeam[m.team_id]) byTeam[m.team_id] = [];
+          byTeam[m.team_id].push(m.profiles?.username || "—");
+        });
+        if (alive) setTeamMembers(byTeam);
+      }
     };
     load();
     const channel = supabase
       .channel(`admin-regs-${t.id}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "registrations", filter: `tournament_id=eq.${t.id}` }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "team_members" }, load)
       .subscribe();
     return () => { alive = false; supabase.removeChannel(channel); };
-  }, [supabase, t.id]);
+  }, [supabase, t.id, isTeam]);
 
   const statusWord = t.status === "open" ? tr("st_open") : tr("st_live");
   const confirmedCount = t.confirmed_count;
@@ -237,7 +314,7 @@ function ManageTournament({ t, onSetStatus, onRemove, onStart, onCancel }) {
           <div style={{ display: "grid", gap: 8, marginBottom: 18 }}>
             {regs.map((r) => (
               <div
-                key={r.user_id}
+                key={r.id}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -253,17 +330,23 @@ function ManageTournament({ t, onSetStatus, onRemove, onStart, onCancel }) {
                 <div style={{ display: "grid", gap: 2 }}>
                   <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                     <span style={{ fontWeight: 700, fontSize: 14 }}>{r.name || "—"}</span>
-                    <Tag>{r.tag}</Tag>
+                    {!isTeam && <Tag>{r.tag}</Tag>}
+                    {r.checked_in && <Pill status="confirmed" />}
                     <Pill status={r.status} />
                   </div>
+                  {isTeam && (
+                    <div style={{ fontSize: 12, color: C.mute }}>
+                      {(teamMembers[r.team_id] || []).join(", ")}
+                    </div>
+                  )}
                 </div>
                 <div style={{ display: "flex", gap: 6 }}>
                   {r.status === "pending" ? (
-                    <Btn kind="cedar" small onClick={() => onSetStatus(r.user_id, "confirmed")}>{tr("confirm_pay")}</Btn>
+                    <Btn kind="cedar" small onClick={() => (isTeam ? onSetTeamStatus(r.team_id, "confirmed") : onSetStatus(r.user_id, "confirmed"))}>{tr("confirm_pay")}</Btn>
                   ) : (
-                    <Btn kind="ghost" small onClick={() => onSetStatus(r.user_id, "pending")}>{tr("undo")}</Btn>
+                    <Btn kind="ghost" small onClick={() => (isTeam ? onSetTeamStatus(r.team_id, "pending") : onSetStatus(r.user_id, "pending"))}>{tr("undo")}</Btn>
                   )}
-                  <Btn kind="danger" small onClick={() => onRemove(r.user_id)}>{tr("remove")}</Btn>
+                  <Btn kind="danger" small onClick={() => (isTeam ? onRemoveTeam(r.team_id) : onRemove(r.user_id))}>{tr("remove")}</Btn>
                 </div>
               </div>
             ))}

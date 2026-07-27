@@ -3,13 +3,13 @@
 import { useState } from "react";
 import { useT } from "@/lib/i18n";
 import { C, DISP } from "@/lib/theme";
-import { Btn, Field, Tag, WhatsAppIcon, WhishBadge, CedarCrown, Stat, SlotMeter } from "@/components/ui";
+import { Btn, Field, Tag, Pill, WhatsAppIcon, WhishBadge, CedarCrown, Stat, SlotMeter } from "@/components/ui";
 import { waLink } from "@/lib/helpers";
 import BracketView from "@/components/BracketView";
 
 export default function ArenaView({ app }) {
   const tr = useT();
-  const { tournament: t, me, myReg, settings, isAdmin, register, reportWinner, undoResult, finishTournament, reportNoShow, games, setGameId } = app;
+  const { tournament: t, me, myReg, settings, isAdmin, register, reportWinner, playerReportWinner, undoResult, finishTournament, reportNoShow, games, setGameId, checkIn } = app;
   const game = games.find((g) => g.id === t?.game_id);
 
   if (!t) {
@@ -74,10 +74,19 @@ export default function ArenaView({ app }) {
 
         {t.status === "open" && (
           <div style={{ marginTop: 22 }}>
-            {!myReg ? (
+            {t.format === "team" ? (
+              <TeamPanel app={app} t={t} />
+            ) : !myReg ? (
               <RegisterButton me={me} register={register} game={game} setGameId={setGameId} />
             ) : (
-              <RegStatusCard reg={myReg} t={t} settings={settings} />
+              <>
+                <RegStatusCard reg={myReg} t={t} settings={settings} />
+                {t.check_in_required && myReg.status === "confirmed" && (
+                  <div style={{ marginTop: 10 }}>
+                    <CheckInButton checkedIn={myReg.checked_in} onCheckIn={checkIn} />
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
@@ -114,10 +123,12 @@ export default function ArenaView({ app }) {
           tournamentId={t.id}
           me={me}
           onReportWinner={isAdmin ? reportWinner : null}
+          onPlayerReportWinner={!isAdmin && t.score_reporting === "players" ? playerReportWinner : null}
           onUndo={isAdmin ? undoResult : null}
           onNoShow={reportNoShow}
           myTag={me?.player_tag}
           myId={me?.id}
+          myTeamId={app.myTeam?.id}
         />
       )}
 
@@ -169,6 +180,92 @@ function RegisterButton({ me, register, game, setGameId }) {
     <Btn onClick={click} disabled={busy} style={{ width: "100%" }}>
       {me ? tr("reg_btn") : tr("reg_signin")}
     </Btn>
+  );
+}
+
+function CheckInButton({ checkedIn, onCheckIn }) {
+  const tr = useT();
+  if (checkedIn) {
+    return <div style={{ fontSize: 13, color: C.cedar, fontWeight: 600 }}>✔ {tr("checked_in_label")}</div>;
+  }
+  return <Btn kind="cedar" small onClick={onCheckIn}>{tr("checkin_btn")}</Btn>;
+}
+
+function TeamPanel({ app, t }) {
+  const tr = useT();
+  const { me, myTeam, myTeamReg, createTeam, addTeamMember, leaveTeam, checkIn } = app;
+  const [name, setName] = useState("");
+  const [identifier, setIdentifier] = useState("");
+  const [err, setErr] = useState(null);
+  const [addErr, setAddErr] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  if (!me) {
+    return (
+      <Btn onClick={() => app.setView("auth")} style={{ width: "100%" }}>
+        {tr("reg_signin")}
+      </Btn>
+    );
+  }
+
+  if (!myTeam) {
+    const submit = async () => {
+      setBusy(true);
+      setErr(null);
+      const e = await createTeam(name);
+      if (e) setErr(e);
+      setBusy(false);
+    };
+    return (
+      <div style={{ background: "rgba(233,180,76,0.08)", border: `1px solid ${C.line}`, borderRadius: 10, padding: 16 }}>
+        <div style={{ fontWeight: 700, color: C.gold, marginBottom: 8 }}>{tr("create_team_title")}</div>
+        <Field label={tr("team_name_label")} value={name} onChange={setName} placeholder="Cedar Wolves" />
+        {err && <div style={{ color: C.red, fontSize: 13, marginBottom: 12 }}>{err}</div>}
+        <Btn onClick={submit} disabled={busy || !name.trim()} style={{ width: "100%" }}>
+          {tr("create_team_btn")}
+        </Btn>
+      </div>
+    );
+  }
+
+  const isCaptain = myTeam.captain_id === me.id;
+
+  const submitAdd = async () => {
+    setBusy(true);
+    setAddErr(null);
+    const e = await addTeamMember(myTeam.id, identifier);
+    if (e) setAddErr(e);
+    else setIdentifier("");
+    setBusy(false);
+  };
+
+  return (
+    <div style={{ background: "rgba(233,180,76,0.08)", border: `1px solid ${C.line}`, borderRadius: 10, padding: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+        <span style={{ fontWeight: 700, color: C.gold }}>{myTeam.name}</span>
+        {myTeamReg && <Pill status={myTeamReg.status} />}
+      </div>
+      <div style={{ fontSize: 13, color: C.mute, marginBottom: 8 }}>
+        {tr("team_roster_label")}: {myTeam.members.map((m) => m.profiles?.username || "—").join(", ")}
+      </div>
+      {t.min_team_size && myTeam.members.length < t.min_team_size && (
+        <div style={{ fontSize: 12, color: C.amber, marginBottom: 10 }}>{tr("team_needs_more", t.min_team_size)}</div>
+      )}
+      {isCaptain ? (
+        <>
+          <Field label={tr("add_player_label")} value={identifier} onChange={setIdentifier} placeholder={tr("add_player_ph")} />
+          {addErr && <div style={{ color: C.red, fontSize: 13, marginBottom: 12 }}>{addErr}</div>}
+          <Btn small onClick={submitAdd} disabled={busy || !identifier.trim()}>{tr("add_player_btn")}</Btn>
+        </>
+      ) : (
+        <Btn kind="danger" small onClick={() => leaveTeam(myTeam.id)}>{tr("leave_team_btn")}</Btn>
+      )}
+      {t.check_in_required && myTeamReg?.status === "confirmed" && isCaptain && (
+        <div style={{ marginTop: 10 }}>
+          <CheckInButton checkedIn={myTeamReg.checked_in} onCheckIn={checkIn} />
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -7,7 +7,7 @@ import { Btn, Tag } from "@/components/ui";
 import { roundName, seriesShort, totalRoundsOf } from "@/lib/helpers";
 import MatchChat from "@/components/MatchChat";
 
-export default function BracketView({ bracket, t, tournamentId, me, onReportWinner, onUndo, onNoShow, myTag, myId }) {
+export default function BracketView({ bracket, t, tournamentId, me, onReportWinner, onPlayerReportWinner, onUndo, onNoShow, myTag, myId, myTeamId }) {
   const tr = useT();
   const totalRounds = totalRoundsOf(bracket);
   const lastIdx = bracket.rounds.length - 1;
@@ -16,11 +16,13 @@ export default function BracketView({ bracket, t, tournamentId, me, onReportWinn
   const [pendingUndo, setPendingUndo] = useState(null);
   const [pendingNoShow, setPendingNoShow] = useState(false);
 
-  const myMatchIdx = myId
-    ? lastRound.findIndex((m) => (m.p1 && m.p1.userId === myId) || (m.p2 && m.p2.userId === myId))
+  const myEntryId = t?.format === "team" ? myTeamId : myId;
+  const myMatchIdx = myEntryId
+    ? lastRound.findIndex((m) => (m.p1 && m.p1.userId === myEntryId) || (m.p2 && m.p2.userId === myEntryId))
     : -1;
   const myMatch = myMatchIdx >= 0 ? lastRound[myMatchIdx] : null;
-  const myOpponent = myMatch ? (myMatch.p1 && myMatch.p1.userId === myId ? myMatch.p2 : myMatch.p1) : null;
+  const myOpponent = myMatch ? (myMatch.p1 && myMatch.p1.userId === myEntryId ? myMatch.p2 : myMatch.p1) : null;
+  const myEntry = myMatch ? (myMatch.p1 && myMatch.p1.userId === myEntryId ? myMatch.p1 : myMatch.p2) : null;
 
   const chatTitle = (m) => `${m.p1 ? m.p1.name || m.p1.tag : "…"} vs ${m.p2 ? m.p2.name || m.p2.tag : "…"}`;
 
@@ -65,6 +67,16 @@ export default function BracketView({ bracket, t, tournamentId, me, onReportWinn
                 <Btn small onClick={() => setOpenChat({ roundIdx: lastIdx, matchIdx: myMatchIdx, title: chatTitle(myMatch) })}>
                   {tr("chat_btn")}
                 </Btn>
+                {!myMatch.winner && onPlayerReportWinner && myEntry && (
+                  <>
+                    <Btn kind="cedar" small onClick={() => onPlayerReportWinner(lastIdx, myMatchIdx, myEntry)}>
+                      {tr("i_won_btn")}
+                    </Btn>
+                    <Btn kind="ghost" small onClick={() => onPlayerReportWinner(lastIdx, myMatchIdx, myOpponent)}>
+                      {tr("opponent_won_btn")}
+                    </Btn>
+                  </>
+                )}
                 {!myMatch.winner &&
                   (myMatch.noShowReport?.by === myId ? (
                     <Btn kind="ghost" small disabled>{tr("noshow_done")}</Btn>
