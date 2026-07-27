@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useT } from "@/lib/i18n";
 import { C, BODY, DISP } from "@/lib/theme";
 import { Btn, Tag } from "@/components/ui";
-import { roundName, seriesShort, totalRoundsOf } from "@/lib/helpers";
+import { roundName, seriesShort, firstToFor, totalRoundsOf } from "@/lib/helpers";
 import MatchChat from "@/components/MatchChat";
 
 export default function BracketView({ bracket, t, tournamentId, me, onReportWinner, onPlayerReportWinner, onUndo, onNoShow, myTag, myId, myTeamId }) {
@@ -28,7 +28,7 @@ export default function BracketView({ bracket, t, tournamentId, me, onReportWinn
 
   const seriesFullFor = (ri) => {
     const s = seriesShort(t, ri, totalRounds);
-    return s === "Bo5" ? tr("bo5_full") : s === "Bo3" ? tr("bo3_full") : "";
+    return s === "Bo5" ? tr("bo5_full") : s === "Bo3" ? tr("bo3_full") : s === "Bo1" ? tr("bo1_full") : "";
   };
 
   return (
@@ -59,7 +59,7 @@ export default function BracketView({ bracket, t, tournamentId, me, onReportWinn
                 {t?.series && (
                   <div style={{ fontSize: 12, color: C.mute, marginTop: 2 }}>
                     {t.mode ? `${t.mode} · ` : ""}
-                    {seriesFullFor(lastIdx)} — {tr("first_to", seriesShort(t, lastIdx, totalRounds) === "Bo5" ? 3 : 2)}
+                    {seriesFullFor(lastIdx)} — {tr("first_to", firstToFor(seriesShort(t, lastIdx, totalRounds)))}
                   </div>
                 )}
               </div>

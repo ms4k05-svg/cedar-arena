@@ -117,6 +117,53 @@ export function Choice({ label, options, value, onChange, hint }) {
   );
 }
 
+export function MultiChoice({ label, options, values, onChange, hint }) {
+  const toggle = (v) => {
+    onChange(values.includes(v) ? values.filter((x) => x !== v) : [...values, v]);
+  };
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div
+        style={{
+          fontSize: 11,
+          textTransform: "uppercase",
+          letterSpacing: "0.1em",
+          color: C.mute,
+          marginBottom: 6,
+          fontWeight: 600,
+        }}
+      >
+        {label}
+      </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {options.map((opt) => {
+          const active = values.includes(opt.value);
+          return (
+            <div
+              key={opt.value}
+              onClick={() => toggle(opt.value)}
+              style={{
+                padding: "9px 14px",
+                borderRadius: 8,
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+                userSelect: "none",
+                background: active ? "rgba(233,180,76,0.14)" : C.bg,
+                border: `1px solid ${active ? C.gold : C.lineSoft}`,
+                color: active ? C.gold : C.mute,
+              }}
+            >
+              {active ? "✓ " : ""}{opt.label}
+            </div>
+          );
+        })}
+      </div>
+      {hint && <div style={{ fontSize: 11, color: C.mute, marginTop: 4 }}>{hint}</div>}
+    </div>
+  );
+}
+
 export function Tag({ children }) {
   return (
     <span

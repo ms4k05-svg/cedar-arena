@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { useT } from "@/lib/i18n";
 import { C, DISP } from "@/lib/theme";
-import { Btn, Field, Choice, Tag, Pill, Panel, SlotMeter } from "@/components/ui";
+import { Btn, Field, Choice, MultiChoice, Tag, Pill, Panel, SlotMeter } from "@/components/ui";
 import { supabaseBrowser } from "@/lib/supabase/client";
+
+const CS2_MAPS = ["Mirage", "Inferno", "Ancient", "Anubis", "Nuke", "Overpass", "Vertigo", "Dust II", "Train"];
 
 export default function AdminView({ app }) {
   const tr = useT();
@@ -126,7 +128,9 @@ function CreateTournament({ onCreate, games }) {
   const [maxPlayers, setMaxPlayers] = useState("16");
   const [mode, setMode] = useState("Mega Draft");
   const [series, setSeries] = useState("Bo3");
+  const [bo3From, setBo3From] = useState("none");
   const [bo5From, setBo5From] = useState("none");
+  const [mapPool, setMapPool] = useState([]);
   const [gameId, setGameId] = useState("");
   const [format, setFormat] = useState("solo");
   const [minTeamSize, setMinTeamSize] = useState("5");
@@ -140,15 +144,23 @@ function CreateTournament({ onCreate, games }) {
     if (!gameId && games.length > 0) setGameId(games[0].id);
   }, [games, gameId]);
 
-  const isClashRoyale = games.find((g) => g.id === gameId)?.slug === "clash-royale";
+  const selectedGame = games.find((g) => g.id === gameId);
+  const isClashRoyale = selectedGame?.slug === "clash-royale";
+  const isCS2 = selectedGame?.slug === "cs2";
   const isTeamFormat = format === "team";
+
+  useEffect(() => {
+    if (selectedGame) setSeries(isClashRoyale ? "Bo3" : "Bo1");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isClashRoyale]);
 
   const submit = async () => {
     setErr(null);
     if (!gameId) { setErr(tr("err_t_game")); return; }
     const e = await onCreate({
       name, startsAt, entryFee, prizePool, maxPlayers,
-      mode: isClashRoyale ? mode : null, series, bo5From, gameId,
+      mode: isClashRoyale ? mode : null, series, bo3From, bo5From, gameId,
+      mapPool: isCS2 ? mapPool : null,
       format,
       minTeamSize: isTeamFormat ? minTeamSize : null,
       maxTeamSize: isTeamFormat && maxTeamSize.trim() !== "" ? maxTeamSize : null,
@@ -188,42 +200,93 @@ function CreateTournament({ onCreate, games }) {
         <Field label={tr("f_fee")} value={entryFee} onChange={setEntryFee} placeholder="$5" />
         <Field label={tr("f_prize")} value={prizePool} onChange={setPrizePool} placeholder="$50" />
       </div>
-      {isClashRoyale && (
-        <Choice
-          label={tr("mode_label")}
-          value={mode}
-          onChange={setMode}
-          options={[
-            { value: "Mega Draft", label: "Mega Draft" },
-            { value: "Triple Draft", label: "Triple Draft" },
-            { value: "Duel", label: "Duel" },
-          ]}
-          hint={mode === "Duel" ? tr("duel_hint") : null}
-        />
-      )}
-      {(!isClashRoyale || mode !== "Duel") && (
-        <Choice
-          label={tr("matches_are")}
-          value={series}
-          onChange={setSeries}
-          options={[
-            { value: "Bo3", label: tr("bo3_full") },
-            { value: "Bo5", label: tr("bo5_full") },
-          ]}
-        />
-      )}
-      {(mode === "Duel" || series === "Bo3") && (
-        <Choice
-          label={tr("bo5from")}
-          value={bo5From}
-          onChange={setBo5From}
-          options={[
-            { value: "none", label: tr("bo5_none") },
-            { value: "final", label: tr("bo5_final") },
-            { value: "semis", label: tr("bo5_semis") },
-          ]}
-          hint={mode === "Duel" ? tr("bo5_duel_hint") : tr("bo5_hint")}
-        />
+      {isClashRoyale ? (
+        <>
+          <Choice
+            label={tr("mode_label")}
+            value={mode}
+            onChange={setMode}
+            options={[
+              { value: "Mega Draft", label: "Mega Draft" },
+              { value: "Triple Draft", label: "Triple Draft" },
+              { value: "Duel", label: "Duel" },
+            ]}
+            hint={mode === "Duel" ? tr("duel_hint") : null}
+          />
+          {mode !== "Duel" && (
+            <Choice
+              label={tr("matches_are")}
+              value={series}
+              onChange={setSeries}
+              options={[
+                { value: "Bo3", label: tr("bo3_full") },
+                { value: "Bo5", label: tr("bo5_full") },
+              ]}
+            />
+          )}
+          {(mode === "Duel" || series === "Bo3") && (
+            <Choice
+              label={tr("bo5from")}
+              value={bo5From}
+              onChange={setBo5From}
+              options={[
+                { value: "none", label: tr("bo5_none") },
+                { value: "final", label: tr("bo5_final") },
+                { value: "semis", label: tr("bo5_semis") },
+              ]}
+              hint={mode === "Duel" ? tr("bo5_duel_hint") : tr("bo5_hint")}
+            />
+          )}
+        </>
+      ) : (
+        <>
+          <Choice
+            label={tr("matches_are")}
+            value={series}
+            onChange={setSeries}
+            options={[
+              { value: "Bo1", label: tr("bo1_full") },
+              { value: "Bo3", label: tr("bo3_full") },
+              { value: "Bo5", label: tr("bo5_full") },
+            ]}
+            hint={tr("cs2_format_hint")}
+          />
+          {series === "Bo1" && (
+            <Choice
+              label={tr("bo3from")}
+              value={bo3From}
+              onChange={setBo3From}
+              options={[
+                { value: "none", label: tr("bo3_none") },
+                { value: "final", label: tr("bo3_final") },
+                { value: "semis", label: tr("bo3_semis") },
+              ]}
+              hint={tr("bo3_hint")}
+            />
+          )}
+          {series !== "Bo5" && (
+            <Choice
+              label={tr("bo5from")}
+              value={bo5From}
+              onChange={setBo5From}
+              options={[
+                { value: "none", label: tr("bo5_none") },
+                { value: "final", label: tr("bo5_final") },
+                { value: "semis", label: tr("bo5_semis") },
+              ]}
+              hint={tr("bo5_hint")}
+            />
+          )}
+          {isCS2 && (
+            <MultiChoice
+              label={tr("map_pool_label")}
+              values={mapPool}
+              onChange={setMapPool}
+              options={CS2_MAPS.map((m) => ({ value: m, label: m }))}
+              hint={tr("map_pool_hint")}
+            />
+          )}
+        </>
       )}
       <Field label={tr("f_count")} value={maxPlayers} onChange={setMaxPlayers} placeholder="16" hint={tr("count_hint")} />
       <Choice

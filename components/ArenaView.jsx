@@ -26,12 +26,13 @@ export default function ArenaView({ app }) {
     );
   }
 
-  const fmtValue =
-    tr("fmt_single") +
-    (t.series
-      ? ` · ${t.series === "Bo5" ? tr("bo5_full") : tr("bo3_full")}` +
-        (t.bo5_from === "final" ? ` ${tr("fmt_final_bo5")}` : t.bo5_from === "semis" ? ` ${tr("fmt_semis_bo5")}` : "")
-      : "");
+  const seriesBaseLabel = t.series === "Bo5" ? tr("bo5_full") : t.series === "Bo1" ? tr("bo1_full") : tr("bo3_full");
+  const escalationSuffix =
+    t.bo5_from === "final" ? ` ${tr("fmt_final_bo5")}` :
+    t.bo5_from === "semis" ? ` ${tr("fmt_semis_bo5")}` :
+    t.bo3_from === "final" ? ` ${tr("fmt_final_bo3")}` :
+    t.bo3_from === "semis" ? ` ${tr("fmt_semis_bo3")}` : "";
+  const fmtValue = tr("fmt_single") + (t.series ? ` · ${seriesBaseLabel}${escalationSuffix}` : "");
 
   return (
     <div>
@@ -69,6 +70,12 @@ export default function ArenaView({ app }) {
           {t.mode && <Stat label={tr("stat_mode")} value={t.mode} accent={C.bone} small />}
           <Stat label={tr("stat_format")} value={fmtValue} accent={C.bone} small />
         </div>
+
+        {t.map_pool && t.map_pool.length > 0 && (
+          <div style={{ fontSize: 12, color: C.mute, marginBottom: 16 }}>
+            {tr("map_pool_label")}: <span style={{ color: C.bone }}>{t.map_pool.join(", ")}</span>
+          </div>
+        )}
 
         <SlotMeter confirmed={t.confirmed_count} max={t.max_players} />
 

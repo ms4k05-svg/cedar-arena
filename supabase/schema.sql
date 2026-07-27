@@ -127,8 +127,10 @@ create table if not exists public.tournaments (
   prize text not null default '',
   max_players int not null check (max_players >= 4 and max_players % 2 = 0),
   mode text check (mode is null or mode in ('Mega Draft','Triple Draft','Duel')),
-  series text not null default 'Bo3' check (series in ('Bo3','Bo5')),
+  series text not null default 'Bo3' check (series in ('Bo1','Bo3','Bo5')),
   bo5_from text not null default 'none' check (bo5_from in ('none','final','semis')),
+  bo3_from text not null default 'none' check (bo3_from in ('none','final','semis')),
+  map_pool text[],
   status text not null default 'open' check (status in ('open','live','completed')),
   confirmed_count int not null default 0,
   bracket jsonb,
@@ -147,6 +149,12 @@ alter table public.tournaments alter column mode drop default;
 alter table public.tournaments drop constraint if exists tournaments_mode_check;
 alter table public.tournaments add constraint tournaments_mode_check
   check (mode is null or mode in ('Mega Draft','Triple Draft','Duel'));
+
+-- Best-of-1 support (with two-tier escalation Bo1 -> Bo3 -> Bo5) + map pool, for games like CS2.
+alter table public.tournaments drop constraint if exists tournaments_series_check;
+alter table public.tournaments add constraint tournaments_series_check check (series in ('Bo1','Bo3','Bo5'));
+alter table public.tournaments add column if not exists bo3_from text not null default 'none' check (bo3_from in ('none','final','semis'));
+alter table public.tournaments add column if not exists map_pool text[];
 
 drop index if exists one_active_tournament_idx;
 create unique index one_active_tournament_idx on public.tournaments ((1)) where status <> 'completed';
@@ -1192,17 +1200,20 @@ begin
 end $$;
 
 drop function if exists public.create_tournament(text,text,text,text,int,text,text,text,uuid);
+drop function if exists public.create_tournament(text,text,text,text,int,text,text,text,uuid,text,int,int,boolean,text,boolean);
 
 create or replace function public.create_tournament(
   p_name text, p_starts_at text, p_entry_fee text, p_prize text,
   p_max_players int, p_mode text, p_series text, p_bo5_from text, p_game_id uuid,
   p_format text, p_min_team_size int, p_max_team_size int,
-  p_check_in_required boolean, p_score_reporting text, p_require_screenshot boolean
+  p_check_in_required boolean, p_score_reporting text, p_require_screenshot boolean,
+  p_bo3_from text, p_map_pool text[]
 ) returns text language plpgsql security definer set search_path = public as $$
 declare
   exists_active boolean;
   series text := coalesce(p_series, 'Bo3');
   bo5 text := coalesce(p_bo5_from, 'none');
+  bo3 text := coalesce(p_bo3_from, 'none');
   gslug text;
   final_mode text;
   fmt text := coalesce(p_format, 'solo');
@@ -1221,15 +1232,18 @@ begin
   else
     final_mode := null;
   end if;
+  if series <> 'Bo1' then bo3 := 'none'; end if;
   if series = 'Bo5' then bo5 := 'none'; end if;
   insert into public.tournaments (
     name, starts_at, entry_fee, prize, max_players, mode, series, bo5_from, game_id,
-    format, min_team_size, max_team_size, check_in_required, score_reporting, require_screenshot
+    format, min_team_size, max_team_size, check_in_required, score_reporting, require_screenshot,
+    bo3_from, map_pool
   )
   values (
     trim(p_name), coalesce(p_starts_at, ''), coalesce(p_entry_fee, ''), coalesce(p_prize, ''),
     p_max_players, final_mode, series, bo5, p_game_id,
-    fmt, p_min_team_size, p_max_team_size, coalesce(p_check_in_required, false), scoring, coalesce(p_require_screenshot, false)
+    fmt, p_min_team_size, p_max_team_size, coalesce(p_check_in_required, false), scoring, coalesce(p_require_screenshot, false),
+    bo3, p_map_pool
   );
   return null;
 exception when unique_violation then
@@ -1246,7 +1260,7 @@ grant execute on function public.admin_remove_team(uuid) to authenticated;
 grant execute on function public.check_in(uuid) to authenticated;
 grant execute on function public.player_report_winner(uuid, int, int, jsonb) to authenticated;
 grant execute on function public.report_winner(uuid, int, int, jsonb) to authenticated;
-grant execute on function public.create_tournament(text,text,text,text,int,text,text,text,uuid,text,int,int,boolean,text,boolean) to authenticated;
+grant execute on function public.create_tournament(text,text,text,text,int,text,text,text,uuid,text,int,int,boolean,text,boolean,text,text[]) to authenticated;
 
 do $$
 begin
