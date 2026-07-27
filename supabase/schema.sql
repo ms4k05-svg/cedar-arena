@@ -808,6 +808,16 @@ create policy teams_select on public.teams for select using (
 revoke all on public.teams from anon, authenticated;
 grant select on public.teams to authenticated;
 
+-- let teammates see each other's profile (so rosters can show usernames)
+drop policy if exists profiles_select_teammates on public.profiles;
+create policy profiles_select_teammates on public.profiles for select using (
+  exists (
+    select 1 from public.team_members tm1
+    join public.team_members tm2 on tm2.team_id = tm1.team_id
+    where tm1.user_id = auth.uid() and tm2.user_id = profiles.id
+  )
+);
+
 alter table public.team_members enable row level security;
 drop policy if exists team_members_select on public.team_members;
 create policy team_members_select on public.team_members for select using (
