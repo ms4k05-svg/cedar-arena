@@ -193,7 +193,7 @@ function CheckInButton({ checkedIn, onCheckIn }) {
 
 function TeamPanel({ app, t }) {
   const tr = useT();
-  const { me, myTeam, myTeamReg, createTeam, addTeamMember, leaveTeam, checkIn } = app;
+  const { me, myTeam, myTeamReg, createTeam, addTeamMember, leaveTeam, removeTeamMember, checkIn } = app;
   const [name, setName] = useState("");
   const [identifier, setIdentifier] = useState("");
   const [err, setErr] = useState(null);
@@ -245,8 +245,32 @@ function TeamPanel({ app, t }) {
         <span style={{ fontWeight: 700, color: C.gold }}>{myTeam.name}</span>
         {myTeamReg && <Pill status={myTeamReg.status} />}
       </div>
-      <div style={{ fontSize: 13, color: C.mute, marginBottom: 8 }}>
-        {tr("team_roster_label")}: {myTeam.members.map((m) => m.profiles?.username || "—").join(", ")}
+      <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", color: C.mute, marginBottom: 6, fontWeight: 600 }}>
+        {tr("team_roster_label")}
+      </div>
+      <div style={{ display: "grid", gap: 6, marginBottom: 12 }}>
+        {myTeam.members.map((m) => (
+          <div
+            key={m.user_id}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 8,
+              background: C.bg,
+              border: `1px solid ${C.lineSoft}`,
+              borderRadius: 8,
+              padding: "6px 10px",
+            }}
+          >
+            <span style={{ fontSize: 13 }}>
+              {m.profiles?.username || "—"} {m.user_id === myTeam.captain_id && "👑"}
+            </span>
+            {isCaptain && m.user_id !== myTeam.captain_id && (
+              <Btn kind="danger" small onClick={() => removeTeamMember(myTeam.id, m.user_id)}>{tr("remove")}</Btn>
+            )}
+          </div>
+        ))}
       </div>
       {t.min_team_size && myTeam.members.length < t.min_team_size && (
         <div style={{ fontSize: 12, color: C.amber, marginBottom: 10 }}>{tr("team_needs_more", t.min_team_size)}</div>
